@@ -1,0 +1,68 @@
+name: Deploy Expedition Reader
+
+on:
+  repository_dispatch:
+    types: [expedition-publish]
+  workflow_dispatch:
+    inputs:
+      source_ref:
+        description: "Source repository ref to publish"
+        required: true
+        default: "expedition/chapter-374"
+        type: string
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: expedition-pages
+  cancel-in-progress: false
+
+env:
+  SOURCE_REPOSITORY: jimzrt/murim-login
+  SOURCE_REF: ${{ github.event.client_payload.ref || inputs.source_ref || 'expedition/chapter-374' }}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout expedition source
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ env.SOURCE_REPOSITORY }}
+          ref: ${{ env.SOURCE_REF }}
+          path: source
+      - id: pages
+        uses: actions/configure-pages@v5
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: source/reader/package-lock.json
+      - name: Validate expedition
+        working-directory: source
+        run: python tools/expedition.py check
+      - name: Build HTML reader
+        working-directory: source
+        env:
+          ASTRO_SITE: ${{ steps.pages.outputs.origin }}
+          ASTRO_BASE: ${{ steps.pages.outputs.base_path }}
+        run: python tools/build.py --format html
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: source/build/html
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
