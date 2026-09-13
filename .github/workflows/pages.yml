@@ -44,6 +44,9 @@ jobs:
           node-version: 22
           cache: npm
           cache-dependency-path: source/reader/package-lock.json
+      - name: Require the expedition starting chapter
+        working-directory: source
+        run: test -f translations/0374.md
       - name: Validate expedition
         working-directory: source
         run: python tools/expedition.py check
